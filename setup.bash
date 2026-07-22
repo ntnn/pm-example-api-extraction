@@ -509,11 +509,19 @@ _object_storage_migrator() {
 }
 
 _rcloneui() {
+    log "Install rcloneui docker image"
     local image="localhost/rcloneui:latest"
     log "Building $image"
     docker build -t "$image" ./providers/rcloneui || die "Failed to build $image"
     log "Loading $image into kind cluster $KIND_CLUSTER"
     kind load docker-image "$image" --name "$KIND_CLUSTER" || die "Failed to load $image into kind"
+
+    log "Install rcloneui provider"
+    local kind_namespace="rcloneui"
+    local ws_admin="$kubeconfigs/workspaces/rcloneui.admin.kubeconfig"
+    kcp::create_workspace "$kcp_admin" "$ws_admin" "rcloneui"
+    _krop recloneui root:rcloneui "$ws_admin" "$kind_namespace"
+    krop::register recloneui "$ws_admin"
 }
 
 _setup() {

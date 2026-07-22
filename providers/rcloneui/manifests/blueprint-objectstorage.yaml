@@ -1,0 +1,67 @@
+apiVersion: krop.opendefense.cloud/v1alpha1
+kind: ResourceGraphDefinition
+metadata:
+  name: objectstorageui
+spec:
+  schema:
+    apiVersion: v1alpha1
+    kind: ObjectStorageUI
+    group: storage.example.io
+    spec:
+      region: string
+    status:
+      url: ${bucket.status.?url.orValue("")}
+      status: '${bucket.status.?succeeded.orValue(0) > 0 ? "Available" : "Provisioning"}'
+  resources:
+    - id: bucket
+      target: consumer
+      readyWhen:
+        - ${bucket.status.?Available.orValue(0) > 0}
+      template:
+        apiVersion: storage.exmaple.io
+        kind: ObjectStorage
+        metadata:
+          name: ${schema.metadata.name}
+          namespace: ${schema.metadata.namespace}
+        spec:
+          region: ${schema.spec.region}
+
+    - id: ui
+      target: host
+      readyWhen:
+        - ${createBucket.status.?succeeded.orValue(0) > 0}
+      template:
+        apiVersion: batch/v1
+        kind: Job
+        metadata:
+          name: ${schema.metadata.name}-create
+          namespace: gcp # must match the krop-controller namespace
+          annotations:
+            # status expressions cannot reference schema -> precompute the URL
+            # here (templates CAN reference schema) and read it back in status.
+            krop.odc/bucket-url: ${"gs://" + schema.metadata.name}
+        spec:
+          backoffLimit: 6
+          template:
+            spec:
+              restartPolicy: Never
+              enableServiceLinks: false
+              containers:
+                - name: create-bucket
+                  image: curlimages/curl:8.11.1
+                  env:
+                    - name: BUCKET
+                      value: ${schema.metadata.name}
+                  command: ["/bin/sh", "-c"]
+                  args:
+                    - |
+                      set -eu
+                      echo "creating gs://$BUCKET in floci-gcp"
+                      code=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+                        'http://floci-gcp.floci-gcp.svc.cluster.local:4588/storage/v1/b?project=test-project' \
+                        -H 'Content-Type: application/json' \
+                        -d "{\"name\":\"$BUCKET\",\"location\":\"EU\"}")
+                      case "$code" in
+                        200|409) echo "ok ($code)";;
+                        *) echo "unexpected HTTP $code"; exit 1;;
+                      esac
