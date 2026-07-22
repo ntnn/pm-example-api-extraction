@@ -42,6 +42,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&ObjectStorage{},
 		&ObjectStorageList{},
+		&ObjectStorageUI{},
+		&ObjectStorageUIList{},
 	)
 
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
