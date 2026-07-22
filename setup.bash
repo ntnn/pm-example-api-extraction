@@ -508,6 +508,14 @@ _object_storage_migrator() {
     kubectl::apply "$ws_rb" ./platform/migrationconfiguration.yaml
 }
 
+_rcloneui() {
+    local image="localhost/rcloneui:latest"
+    log "Building $image"
+    docker build -t "$image" ./providers/rcloneui || die "Failed to build $image"
+    log "Loading $image into kind cluster $KIND_CLUSTER"
+    kind load docker-image "$image" --name "$KIND_CLUSTER" || die "Failed to load $image into kind"
+}
+
 _setup() {
     _kubeconfig
     _kcp
@@ -515,6 +523,7 @@ _setup() {
     _platform_apis
     _broker
     _object_storage_migrator
+    _rcloneui
     _floci # deploy floci instances in the kind cluster
     # Path B (the decided architecture): krop-controller per provider workspace,
     # blueprint-resident realization, no api-syncagent.
@@ -548,5 +557,6 @@ case "${1:-setup}" in
     (syncagent-gcp) _kubeconfig; _kcp; _gcp_provider ;;
     (consumer) _kubeconfig; _kcp; _consumer ;;
     (krop-providers) _kubeconfig; _kcp; _provider_gcp; _provider_aws; _provider_azure ;;
+    (rcloneui) _kubeconfig; _rcloneui ;;
     (*) die "Unknown command: $1 (want: setup | kubeconfig | broker | gcp | syncagent-gcp | consumer | krop-providers)" ;;
 esac
